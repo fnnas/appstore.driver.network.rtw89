@@ -3,4 +3,4 @@ echo -e "$(date +'%Y/%m/%d %H:%M:%S')\t" $0 $*
 rm -rf /lib/modules/6.*-trim/updates/dkms/rtw89
 echo "depmod：`depmod`"
 echo "modprobe -D"
-echo "`modprobe -D rtw89`"
+echo "`modprobe -D rtw89_core_git`"

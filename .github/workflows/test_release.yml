@@ -1,0 +1,108 @@
+name: Test Release
+run-name: ${{ github.actor }} build ${{ github.ref_name }} ${{ github.sha }}
+
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+on:
+  workflow_dispatch:
+    inputs:
+      make_release:
+        description: 'Do you want to create a release?'
+        required: true
+        type: boolean
+        default: false
+
+env:
+  proj_name: "rtw89"
+  rtw89_commit_sha: "2b491dc"
+  rtw89_pack_version: "1.0.1"
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      proj_name: ${{ env.proj_name }}
+      rtw89_commit_sha: ${{ env.rtw89_commit_sha }}
+    steps:
+      - run: echo "All set!"
+  get_rtw89firmware:
+    uses: ./.github/workflows/get_rtw89firmware.yml
+    secrets: inherit
+    needs:
+      - setup
+    with:
+      proj_name: ${{ needs.setup.outputs.proj_name }}
+      rtw89_commit_sha: ${{ needs.setup.outputs.rtw89_commit_sha }}
+  build_6-12-18-trim-3:
+    uses: ./.github/workflows/kernel-6.12.18-trim-3.yml
+    secrets: inherit
+    needs:
+      - setup
+    with:
+      proj_name: ${{ needs.setup.outputs.proj_name }}
+      rtw89_commit_sha: ${{ needs.setup.outputs.rtw89_commit_sha }}
+  pack_app_tgz:
+    needs:
+      - get_rtw89firmware
+      - build_6-12-18-trim-3
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: restore firmware
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.proj_name }}-${{ env.rtw89_commit_sha }}-firmware
+          path: app/app/rtw89firmware
+      - name: restore 6-12-18-trim-3
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.proj_name }}-${{ env.rtw89_commit_sha }}-6.12.18-trim_3
+          path: app/app/
+
+      - name: 打包app.tgz
+        run: |
+          cd app/
+          tar zcvf app.tgz app ui
+          mv app.tgz ../rtw89_driver
+      - name: 打包package
+        run: |
+          tar zcvf appstore.driver.network.rtw89-${{ env.rtw89_pack_version }}-${{ env.rtw89_commit_sha }}.tgz rtw89_driver
+      - name: 上传应用包
+        uses: actions/upload-artifact@master
+        with:
+          name: appstore.driver.network.rtw89-${{ env.rtw89_pack_version }}-${{ env.rtw89_commit_sha }}.tgz
+          path: appstore.driver.network.rtw89-${{ env.rtw89_pack_version }}-${{ env.rtw89_commit_sha }}.tgz
+      - name: Create GitHub Release
+        if: ${{ inputs.make_release }}
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.rtw89_pack_version }}
+          prerelease: true
+          release_name: "fnnas.appstore.driver.network.rtw89-${{ env.rtw89_pack_version }}-${{ env.rtw89_commit_sha }}"
+
+      - name: Upload Release Assets
+        if: ${{ inputs.make_release }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Uploading release assets..."
+          
+          echo "Uploading appstore.driver.network.rtw89-${{ env.rtw89_pack_version }}-${{ env.rtw89_commit_sha }}.tgz"
+          gh release upload "${{ env.rtw89_pack_version }}" "appstore.driver.network.rtw89-${{ env.rtw89_pack_version }}-${{ env.rtw89_commit_sha }}.tgz" || echo "Failed to upload $file"
+          
+          echo "Upload completed!"
+
+      - name: Verify Uploaded Assets
+        if: ${{ inputs.make_release }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Uploaded assets:"
+          gh release view "${{ env.rtw89_pack_version }}" --json assets -q '.assets[].name'
