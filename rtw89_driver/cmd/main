@@ -1,0 +1,68 @@
+#!/bin/bash
+
+if [[ "$1" != "status" ]];then
+    echo -e "$(date +'%Y/%m/%d %H:%M:%S')\t" $0 $*
+fi
+
+PACKAGE_BASE=${TRIM_APPDEST}
+rtw89_firmware_dir="/usr/lib/firmware/rtw89"
+
+supportKernelList=("6.12.18-trim")
+
+nowKernelVer=`uname -r`
+nowKernelBuildNum=`uname -v| grep -oP '(?<=#)\d+'`
+
+case $1 in
+start)
+    echo "`uname -a`"
+    echo "kernel_inf ${nowKernelVer} ${nowKernelBuildNum}"
+
+    if [[ " ${supportKernelList[@]} " =~ " ${nowKernelVer} " ]]; then
+        echo "${nowKernelVer} in supportKernelList"
+    else
+        echo "${nowKernelVer} not in supportKernelList"
+		exit 1
+    fi
+	
+    mkdir -p ${rtw89_firmware_dir}
+    cp -rf ${PACKAGE_BASE}/app/rtw89firmware/* ${rtw89_firmware_dir}/
+    
+    mkdir -p /lib/modules/${nowKernelVer}/updates/dkms/rtw89
+    
+    case "$nowKernelVer" in
+        6.12.18-trim)
+            echo "debug 6.12.18-trim"
+            cp -rf ${PACKAGE_BASE}/app/rtw89_6.12.18-trim_3/* /lib/modules/6.12.18-trim/updates/dkms/rtw89/
+            ;;
+
+        *)
+
+    esac
+    
+    printf "depmod：`depmod`\n"
+    printf "`modprobe -v rtw_8852ae`\n"
+	modlist=`lsmod |grep rtw_8852ae | wc -l`
+	echo "modnum ${modlist}"
+	if [[ ${modlist} -eq 0 ]]; then
+		exit 3
+	fi
+    ;;
+stop)
+
+    ;;
+status)
+    modlist=`lsmod |grep rtw_8852ae | wc -l`
+    if [[ -d "/lib/modules/${nowKernelVer}/updates/dkms/rtw89" && ! $modlist -eq 0 ]];then
+            #echo "is already set"
+            exit 0
+    else
+        echo -e "$(date +'%Y/%m/%d %H:%M:%S')\t" $0 $*
+        echo "lsmod rtw"
+        printf "`lsmod |grep rtw`\n"
+        exit 3
+    fi
+    ;;
+*)
+    exit 1
+    ;;
+esac
