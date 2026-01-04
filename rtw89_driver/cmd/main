@@ -7,7 +7,7 @@ fi
 PACKAGE_BASE=${TRIM_APPDEST}
 rtw89_firmware_dir="/usr/lib/firmware/rtw89"
 
-supportKernelList=("6.12.18-trim")
+supportKernelList=("6.12.18-trim" "6.12.41-trim")
 
 nowKernelVer=$(uname -r)
 nowKernelBuildNum=$(uname -v | grep -oP '(?<=#)\d+')
@@ -27,11 +27,26 @@ start)
 	mkdir -p ${rtw89_firmware_dir}
 	cp -rf ${PACKAGE_BASE}/app/rtw89firmware/* ${rtw89_firmware_dir}/
 
-	mkdir -p /lib/modules/${nowKernelVer}/updates/dkms/rtw89
+	vermagic=$(modinfo -F vermagic "$(lsmod | awk 'NR==2{print $1}')")
+	echo "$vermagic"
+	if [[ "$(uname -m)" == "aarch64" ]]; then
+		echo "is aarch64"
+		case "$vermagic" in
+		"6.12.41-trim SMP preempt mod_unload aarch64")
+			mkdir -p /lib/modules/6.12.41-trim/updates/dkms/rtw89
+			cp -rf ${PACKAGE_BASE}/app/rtw89_6.12.41-trim-27-arm64-rk35xx/* /lib/modules/6.12.41-trim/updates/dkms/rtw89/
+			;;
+		"6.12.41-trim SMP mod_unload modversions aarch64")
+			mkdir -p /lib/modules/6.12.41-trim/updates/dkms/rtw89
+			cp -rf ${PACKAGE_BASE}/app/rtw89_6.12.41-trim-27-arm64-armsr/* /lib/modules/6.12.41-trim/updates/dkms/rtw89/
+			;;
+		esac
+	fi
 
 	case "$nowKernelVer" in
 	6.12.18-trim)
 		echo "debug 6.12.18-trim"
+		mkdir -p /lib/modules/6.12.18-trim/updates/dkms/rtw89
 		cp -rf ${PACKAGE_BASE}/app/rtw89_6.12.18-trim_3/* /lib/modules/6.12.18-trim/updates/dkms/rtw89/
 		;;
 
@@ -51,7 +66,7 @@ stop) ;;
 
 status)
 	modlist=$(lsmod | grep rtw89_8852ae_git | wc -l)
-	if [[ -d "/lib/modules/${nowKernelVer}/updates/dkms/rtw89" && ! $modlist -eq 0 ]]; then
+	if [[ -d "/lib/modules/$(uname -r)/updates/dkms/rtw89" && ! $modlist -eq 0 ]]; then
 		#echo "is already set"
 		exit 0
 	else
