@@ -18,8 +18,8 @@ on:
 
 env:
   proj_name: "rtw89"
-  rtw89_commit_sha: "7da080f"
-  rtw89_pack_version: "1.0.3-1"
+  rtw89_commit_sha: "2544ebf"
+  rtw89_pack_version: "1.0.3-2"
 jobs:
   setup:
     runs-on: ubuntu-latest
